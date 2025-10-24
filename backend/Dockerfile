@@ -34,7 +34,8 @@ ENV CODEFORMER_MODELS_DIR=/app/models/codeformer
 ENV GFPGAN_MODELS_DIR=/app/models/gfpgan
 ENV REALESRGAN_MODELS_DIR=/app/models/realesrgan
 ENV NCNN_THREADS=4
-ENV NCNN_GPU=1
+# Default to CPU for broad compatibility; set to 1 at runtime if GPU available
+ENV NCNN_GPU=0
 ENV REALESRGAN_MODELS_DIR=/app/models/realesrgan
 
 # Create storage dirs
@@ -65,5 +66,6 @@ RUN set -eux; \
     rm -rf /tmp/*; \
     chmod +x /usr/local/bin/*-ncnn-vulkan || true
 
-# Start server
-CMD ["python3", "-m", "app.main"]
+# Start server with gunicorn (better for production)
+ENV WEB_CONCURRENCY=2
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "app.main:app"]
