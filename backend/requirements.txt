@@ -1,0 +1,13 @@
+# Web
+flask==3.0.3
+flask-cors==4.0.1
+werkzeug==3.0.4
+
+# Imaging
+Pillow==10.4.0
+
+# Async / runtime
+uvicorn==0.30.5
+
+# Optional: for typing backports on older pythons (not strictly needed)
+typing_extensions==4.12.2
