@@ -11,6 +11,11 @@ def ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
 
 
+def rife_available() -> Optional[str]:
+    # Use RIFE ncnn Vulkan CLI if present
+    return shutil.which("rife-ncnn-vulkan")
+
+
 def _run_command(args: List[str]) -> subprocess.CompletedProcess:
     return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True)
 
@@ -92,9 +97,34 @@ def assemble_video(
         pattern,
     ]
 
-    # Optional frame interpolation to a higher fps using FFmpeg minterpolate
+    # Optional frame interpolation to a higher fps
     if interpolate_to_fps and interpolate_to_fps > fps:
-        cmd.extend(["-vf", f"minterpolate=fps={interpolate_to_fps}"])
+        # Prefer RIFE CLI if available by pre-generating interpolated frames
+        rife = rife_available()
+        if rife:
+            # Generate interpolated frames into a temp folder next to frames_dir
+            import tempfile, os
+            tmp_out = tempfile.mkdtemp(prefix="rife_", dir=os.path.dirname(frames_dir))
+            pattern = os.path.join(frames_dir, "%08d.png")
+            out_pattern = os.path.join(tmp_out, "%08d.png")
+            # Factor approximated by ratio of target fps to src fps rounded to int
+            try:
+                factor = max(2, int(round(float(interpolate_to_fps) / float(fps))))
+            except Exception:
+                factor = 2
+            subprocess.run([rife, "-i", pattern, "-o", out_pattern, "-n", str(factor)], check=True)
+            frames_dir = tmp_out
+            pattern = os.path.join(frames_dir, "%08d.png")
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-framerate",
+                str(interpolate_to_fps),
+                "-i",
+                pattern,
+            ]
+        else:
+            cmd.extend(["-vf", f"minterpolate=fps={interpolate_to_fps}"])
 
     cmd.extend([
         "-pix_fmt",

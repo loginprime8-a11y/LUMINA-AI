@@ -29,6 +29,10 @@ def _gfpgan_available() -> Optional[str]:
     return _which("gfpgan-ncnn-vulkan")
 
 
+def _codeformer_available() -> Optional[str]:
+    return _which("codeformer-ncnn-vulkan")
+
+
 def enhance_image_general(input_path: str, output_path: str, strength: float = 0.5) -> None:
     """Lightweight general enhancement using PIL: contrast, sharpness, denoise."""
     _ensure_pil_available()
@@ -48,7 +52,18 @@ def enhance_image_general(input_path: str, output_path: str, strength: float = 0
 
 
 def enhance_image_face(input_path: str, output_path: str, strength: float = 0.5) -> None:
-    """Face enhancement using GFPGAN if available, otherwise a general enhancement with gentle settings."""
+    """Face enhancement using CodeFormer or GFPGAN if available, otherwise a gentle fallback."""
+    # Prefer CodeFormer if present
+    codeformer = _codeformer_available()
+    if codeformer:
+        try:
+            # Some builds accept just -i/-o; if it fails, we'll fall back
+            _run_cmd([codeformer, "-i", input_path, "-o", output_path])
+            return
+        except Exception:
+            pass
+
+    # Try GFPGAN next
     gfpgan = _gfpgan_available()
     if gfpgan:
         try:

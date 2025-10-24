@@ -141,6 +141,12 @@
             a.textContent = 'Download result';
             a.className = 'button';
             result.appendChild(a);
+            const hq = document.createElement('a');
+            hq.href = `/api/download/${job_id}/hq`;
+            hq.textContent = 'Download HQ';
+            hq.className = 'button';
+            hq.style.marginLeft = '0.5rem';
+            result.appendChild(hq);
           } else if (j.status === 'FAILED' || j.status === 'CANCELLED') {
             done = true;
             result.textContent = j.error || 'Job failed or cancelled.';

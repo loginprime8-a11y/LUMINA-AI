@@ -154,7 +154,10 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
     output_format = (options.format or "mp4").lower()
     if output_format not in {"mp4", "mov", "mkv", "webm"}:
         output_format = "mp4"
-    output_path = os.path.join(output_dir, f"{base_name}_upscaled.{output_format}")
+    suffix = "enhanced"
+    if options.mode:
+        suffix = options.mode.replace(" ", "_")
+    output_path = os.path.join(output_dir, f"{base_name}_{suffix}.{output_format}")
 
     if getattr(job, "cancel_requested", False):
         raise RuntimeError("cancelled")
