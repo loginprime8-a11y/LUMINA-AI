@@ -50,7 +50,15 @@ class JobManager:
     def __init__(self) -> None:
         self._jobs: Dict[str, Job] = {}
         self._jobs_lock: Lock = Lock()
-        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="job-worker")
+        # Make worker concurrency configurable via env var JOB_WORKERS (default 2)
+        try:
+            import os
+            workers = int(os.environ.get("JOB_WORKERS", "2"))
+            if workers < 1:
+                workers = 1
+        except Exception:
+            workers = 2
+        self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="job-worker")
         self._logger = logging.getLogger(__name__)
 
     @classmethod

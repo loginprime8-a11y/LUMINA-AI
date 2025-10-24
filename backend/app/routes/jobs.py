@@ -23,7 +23,19 @@ def get_job(job_id: str):
 @jobs_bp.get("/download/<job_id>")
 def download(job_id: str):
     job = job_manager.get_job(job_id)
-    if job is None or job.output_path is None or (str(job.status) != "JobStatus.COMPLETED" and str(job.status) != "COMPLETED"):
+    # Robust completion check regardless of Enum/string representation
+    status_value = None
+    if job is not None:
+        try:
+            status_value = job.status.value  # type: ignore[attr-defined]
+        except Exception:
+            status_value = str(job.status) if job and job.status is not None else None
+    if (
+        job is None
+        or job.output_path is None
+        or status_value != "COMPLETED"
+        or not os.path.exists(job.output_path)
+    ):
         abort(404)
     return send_file(job.output_path, as_attachment=True, download_name=os.path.basename(job.output_path))
 

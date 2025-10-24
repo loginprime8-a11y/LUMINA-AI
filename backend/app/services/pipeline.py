@@ -8,7 +8,6 @@ from typing import Optional, Dict, Any
 from ..utils.config import AppConfig
 from ..utils import ffmpeg as ffm
 from .image_upscaler import upscale_image
-from .job_manager import Job
 
 
 @dataclass

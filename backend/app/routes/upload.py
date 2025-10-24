@@ -33,11 +33,30 @@ def upload():
 
     media_type = detect_media_type(filename)
 
-    # Optional processing options
+    # Optional processing options (parse safely)
     form = request.form
-    scale = float(form.get("scale")) if form.get("scale") else None
-    target_width = int(form.get("target_width")) if form.get("target_width") else None
-    target_height = int(form.get("target_height")) if form.get("target_height") else None
+
+    def _parse_float(name: str):
+        val = form.get(name)
+        if val is None or val == "":
+            return None
+        try:
+            return float(val)
+        except Exception:
+            return None
+
+    def _parse_int(name: str):
+        val = form.get(name)
+        if val is None or val == "":
+            return None
+        try:
+            return int(val)
+        except Exception:
+            return None
+
+    scale = _parse_float("scale")
+    target_width = _parse_int("target_width")
+    target_height = _parse_int("target_height")
     video_bitrate = form.get("video_bitrate") or None
     output_format = form.get("format") or None
 

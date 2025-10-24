@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Free Image/Video Enhancer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; margin: 2rem; color: #222; }
+    h1 { margin: 0 0 1rem; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; max-width: 720px; }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    input[type="number"], input[type="text"] { width: 120px; }
+    progress { width: 100%; height: 16px; }
+    .hidden { display: none; }
+    #result { margin-top: 1rem; }
+    a.button { display: inline-block; padding: 0.5rem 0.75rem; background: #111827; color: #fff; border-radius: 6px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <h1>Free Image/Video Enhancer</h1>
+  <p>Upload an image or video. Processing is free and unlimited.</p>
+  <div class="card">
+    <form id="form">
+      <div class="row">
+        <input id="file" name="file" type="file" required />
+        <label>Scale <input id="scale" name="scale" type="number" step="0.1" placeholder="e.g. 2" /></label>
+        <label>Target width <input id="tw" name="target_width" type="number" /></label>
+        <label>Target height <input id="th" name="target_height" type="number" /></label>
+        <label>Format <input id="fmt" name="format" type="text" placeholder="png/jpg/webp/mp4" /></label>
+        <label>Video bitrate <input id="vb" name="video_bitrate" type="text" placeholder="e.g. 2M" /></label>
+      </div>
+      <div style="margin-top: 1rem">
+        <button type="submit">Start</button>
+      </div>
+    </form>
+    <div id="status" class="hidden">
+      <p><strong>Status:</strong> <span id="st">PENDING</span></p>
+      <progress id="prog" value="0" max="1"></progress>
+      <div id="result"></div>
+    </div>
+  </div>
+  <script>
+    const form = document.getElementById('form');
+    const statusEl = document.getElementById('status');
+    const st = document.getElementById('st');
+    const prog = document.getElementById('prog');
+    const result = document.getElementById('result');
+
+    async function upload(formData) {
+      const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (!resp.ok) throw new Error('Upload failed');
+      return resp.json();
+    }
+
+    async function getJob(id) {
+      const r = await fetch(`/api/job/${id}`);
+      if (!r.ok) throw new Error('Job not found');
+      return r.json();
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      if (!fd.get('file') || !fd.get('file').name) { alert('Please choose a file'); return; }
+      statusEl.classList.remove('hidden');
+      st.textContent = 'PENDING';
+      prog.value = 0;
+      result.innerHTML = '';
+      try {
+        const { job_id } = await upload(fd);
+        let done = false;
+        while (!done) {
+          await new Promise(r => setTimeout(r, 800));
+          const j = await getJob(job_id);
+          st.textContent = j.status;
+          prog.value = j.progress ?? 0;
+          if (j.status === 'COMPLETED') {
+            done = true;
+            const a = document.createElement('a');
+            a.href = j.download_url || `/api/download/${job_id}`;
+            a.textContent = 'Download result';
+            a.className = 'button';
+            result.appendChild(a);
+          } else if (j.status === 'FAILED' || j.status === 'CANCELLED') {
+            done = true;
+            result.textContent = j.error || 'Job failed or cancelled.';
+          }
+        }
+      } catch (err) {
+        alert(err?.message || String(err));
+      }
+    });
+  </script>
+</body>
+</html>
