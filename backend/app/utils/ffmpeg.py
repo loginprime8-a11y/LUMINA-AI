@@ -120,6 +120,11 @@ def assemble_video(
                 factor = max(2, int(round(float(interpolate_to_fps) / float(fps))))
             except Exception:
                 factor = 2
+            # Allow override via RIFE factor env for experimentation
+            try:
+                factor = int(os.environ.get("RIFE_FACTOR", str(factor)))
+            except Exception:
+                pass
             args = [rife, "-i", pattern, "-o", out_pattern, "-n", str(factor)]
             mdir = _get_models_dir("RIFE_MODELS_DIR", "/app/models/rife")
             if mdir:

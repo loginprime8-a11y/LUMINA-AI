@@ -66,6 +66,8 @@ def upload():
     if interpolate is not None:
         interpolate = interpolate.lower() in {"1", "true", "yes", "on"}
     interp_factor = _parse_int("interp_factor")
+    realesrgan_model = form.get("realesrgan_model") or None
+    rife_factor = _parse_int("rife_factor")
 
     options = {
         "scale": scale,
@@ -77,6 +79,8 @@ def upload():
         "strength": strength,
         "interpolate": interpolate,
         "interp_factor": interp_factor,
+        "realesrgan_model": realesrgan_model,
+        "rife_factor": rife_factor,
     }
 
     job = job_manager.create_job(job_id=job_id, input_path=input_path, media_type=media_type, options=options)

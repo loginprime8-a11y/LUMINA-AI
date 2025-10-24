@@ -22,6 +22,8 @@ class ProcessOptions:
     strength: Optional[float] = None
     interpolate: Optional[bool] = None
     interp_factor: Optional[int] = None
+    realesrgan_model: Optional[str] = None
+    rife_factor: Optional[int] = None
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "ProcessOptions":
@@ -35,6 +37,8 @@ class ProcessOptions:
             strength=data.get("strength"),
             interpolate=data.get("interpolate"),
             interp_factor=data.get("interp_factor"),
+            realesrgan_model=data.get("realesrgan_model"),
+            rife_factor=data.get("rife_factor"),
         )
 
 
@@ -77,6 +81,7 @@ def _process_image(job: Job, options: ProcessOptions, job_manager) -> str:
             scale=options.scale,
             target_width=options.target_width,
             target_height=options.target_height,
+            realesrgan_model=options.realesrgan_model,
         )
         src_for_enhance = temp_up
     else:
@@ -134,6 +139,7 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
             scale=options.scale,
             target_width=options.target_width,
             target_height=options.target_height,
+            realesrgan_model=options.realesrgan_model,
         )
         apply_enhancements(
             input_path=temp_up,
