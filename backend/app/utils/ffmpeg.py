@@ -5,10 +5,23 @@ import re
 import shutil
 import subprocess
 from typing import List, Optional
+import os
 
 
 def ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
+
+
+def rife_available() -> Optional[str]:
+    # Use RIFE ncnn Vulkan CLI if present
+    return shutil.which("rife-ncnn-vulkan")
+
+
+def _get_models_dir(env_var: str, default: str) -> Optional[str]:
+    path = os.environ.get(env_var, default)
+    if path and os.path.isdir(path):
+        return path
+    return None
 
 
 def _run_command(args: List[str]) -> subprocess.CompletedProcess:
@@ -72,7 +85,14 @@ def extract_audio(input_video_path: str, audio_output_path: str) -> bool:
         return False
 
 
-def assemble_video(frames_dir: str, fps: float, output_path: str, audio_path: Optional[str] = None, video_bitrate: Optional[str] = None) -> None:
+def assemble_video(
+    frames_dir: str,
+    fps: float,
+    output_path: str,
+    audio_path: Optional[str] = None,
+    video_bitrate: Optional[str] = None,
+    interpolate_to_fps: Optional[float] = None,
+) -> None:
     processed_dir = frames_dir
     pattern = os.path.join(processed_dir, "%08d.png")
 
@@ -83,6 +103,52 @@ def assemble_video(frames_dir: str, fps: float, output_path: str, audio_path: Op
         str(fps),
         "-i",
         pattern,
+    ]
+
+    # Optional frame interpolation to a higher fps
+    if interpolate_to_fps and interpolate_to_fps > fps:
+        # Prefer RIFE CLI if available by pre-generating interpolated frames
+        rife = rife_available()
+        if rife:
+            # Generate interpolated frames into a temp folder next to frames_dir
+            import tempfile, os
+            tmp_out = tempfile.mkdtemp(prefix="rife_", dir=os.path.dirname(frames_dir))
+            pattern = os.path.join(frames_dir, "%08d.png")
+            out_pattern = os.path.join(tmp_out, "%08d.png")
+            # Factor approximated by ratio of target fps to src fps rounded to int
+            try:
+                factor = max(2, int(round(float(interpolate_to_fps) / float(fps))))
+            except Exception:
+                factor = 2
+            # Allow override via RIFE factor env for experimentation
+            try:
+                factor = int(os.environ.get("RIFE_FACTOR", str(factor)))
+            except Exception:
+                pass
+            args = [rife, "-i", pattern, "-o", out_pattern, "-n", str(factor)]
+            mdir = _get_models_dir("RIFE_MODELS_DIR", "/app/models/rife")
+            if mdir:
+                args.extend(["-m", mdir])
+            # Expose optional thread/gpu flags similar to other NCNN tools
+            if os.environ.get("NCNN_THREADS"):
+                args.extend(["-t", os.environ["NCNN_THREADS"]])
+            if os.environ.get("NCNN_GPU") in {"0", "1"}:
+                args.extend(["-g", os.environ["NCNN_GPU"]])
+            subprocess.run(args, check=True)
+            frames_dir = tmp_out
+            pattern = os.path.join(frames_dir, "%08d.png")
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-framerate",
+                str(interpolate_to_fps),
+                "-i",
+                pattern,
+            ]
+        else:
+            cmd.extend(["-vf", f"minterpolate=fps={interpolate_to_fps}"])
+
+    cmd.extend([
         "-pix_fmt",
         "yuv420p",
         "-c:v",
@@ -91,7 +157,7 @@ def assemble_video(frames_dir: str, fps: float, output_path: str, audio_path: Op
         "slow",
         "-crf",
         "18",
-    ]
+    ])
 
     if video_bitrate:
         cmd.extend(["-b:v", video_bitrate])

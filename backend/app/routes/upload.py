@@ -33,13 +33,41 @@ def upload():
 
     media_type = detect_media_type(filename)
 
-    # Optional processing options
+    # Optional processing options (parse safely)
     form = request.form
-    scale = float(form.get("scale")) if form.get("scale") else None
-    target_width = int(form.get("target_width")) if form.get("target_width") else None
-    target_height = int(form.get("target_height")) if form.get("target_height") else None
+
+    def _parse_float(name: str):
+        val = form.get(name)
+        if val is None or val == "":
+            return None
+        try:
+            return float(val)
+        except Exception:
+            return None
+
+    def _parse_int(name: str):
+        val = form.get(name)
+        if val is None or val == "":
+            return None
+        try:
+            return int(val)
+        except Exception:
+            return None
+
+    scale = _parse_float("scale")
+    target_width = _parse_int("target_width")
+    target_height = _parse_int("target_height")
     video_bitrate = form.get("video_bitrate") or None
     output_format = form.get("format") or None
+    mode = form.get("mode") or None
+    strength = _parse_float("strength")
+    # video interpolation options (placeholder; not implemented with RIFE here)
+    interpolate = form.get("interpolate")
+    if interpolate is not None:
+        interpolate = interpolate.lower() in {"1", "true", "yes", "on"}
+    interp_factor = _parse_int("interp_factor")
+    realesrgan_model = form.get("realesrgan_model") or None
+    rife_factor = _parse_int("rife_factor")
 
     options = {
         "scale": scale,
@@ -47,6 +75,12 @@ def upload():
         "target_height": target_height,
         "video_bitrate": video_bitrate,
         "format": output_format,
+        "mode": mode,
+        "strength": strength,
+        "interpolate": interpolate,
+        "interp_factor": interp_factor,
+        "realesrgan_model": realesrgan_model,
+        "rife_factor": rife_factor,
     }
 
     job = job_manager.create_job(job_id=job_id, input_path=input_path, media_type=media_type, options=options)

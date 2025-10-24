@@ -1,0 +1,201 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Free Image/Video Enhancer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; margin: 2rem; color: #222; }
+    h1 { margin: 0 0 1rem; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; max-width: 720px; }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    input[type="number"], input[type="text"] { width: 120px; }
+    progress { width: 100%; height: 16px; }
+    .hidden { display: none; }
+    #result { margin-top: 1rem; }
+    a.button { display: inline-block; padding: 0.5rem 0.75rem; background: #111827; color: #fff; border-radius: 6px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <h1>Free Image/Video Enhancer</h1>
+  <p>Upload an image or video. Processing is free and unlimited.</p>
+  <div class="card">
+    <form id="form">
+      <div class="row">
+        <input id="file" name="file" type="file" required />
+        <label>Mode
+          <select id="mode" name="mode">
+            <option value="general">General Enhancement</option>
+            <option value="face">Face Enhancement</option>
+            <option value="repair">AI Repair</option>
+          </select>
+        </label>
+        <label>Strength <input id="strength" name="strength" type="number" step="0.1" min="0" max="1" value="0.6" /></label>
+        <label>Scale <input id="scale" name="scale" type="number" step="0.1" placeholder="e.g. 2" /></label>
+        <label>Target width <input id="tw" name="target_width" type="number" /></label>
+        <label>Target height <input id="th" name="target_height" type="number" /></label>
+        <label>Format <input id="fmt" name="format" type="text" placeholder="png/jpg/webp/mp4" /></label>
+        <label>Video bitrate <input id="vb" name="video_bitrate" type="text" placeholder="e.g. 2M" /></label>
+        <label>Interpolate <input id="interpolate" name="interpolate" type="checkbox" /></label>
+        <label>Interp factor <input id="interp_factor" name="interp_factor" type="number" min="2" max="8" /></label>
+        <label>Real-ESRGAN model
+          <select id="realesrgan_model" name="realesrgan_model">
+            <option value="">Auto</option>
+            <option value="realesrgan-x4plus">realesrgan-x4plus (general)</option>
+            <option value="realesrgan-x4plus-anime">realesrgan-x4plus-anime</option>
+            <option value="realesr-animevideov3">realesr-animevideov3</option>
+            <option value="realesrgan-x2plus">realesrgan-x2plus</option>
+          </select>
+        </label>
+        <label>RIFE factor <input id="rife_factor" name="rife_factor" type="number" min="2" max="8" /></label>
+      </div>
+      <div style="margin-top: 1rem">
+        <button type="submit">Start</button>
+      </div>
+    </form>
+    <div id="status" class="hidden">
+      <p><strong>Status:</strong> <span id="st">PENDING</span></p>
+      <progress id="prog" value="0" max="1"></progress>
+      <div id="result"></div>
+    </div>
+  </div>
+  <h2 style="margin-top:2rem">Preview (image only)</h2>
+  <div class="card">
+    <form id="previewForm">
+      <div class="row">
+        <input id="pfile" name="file" type="file" accept="image/*" required />
+        <label>Mode
+          <select id="pmode" name="mode">
+            <option value="general">General</option>
+            <option value="face">Face</option>
+            <option value="repair">Repair</option>
+          </select>
+        </label>
+        <label>Strength <input id="pstrength" name="strength" type="number" step="0.1" min="0" max="1" value="0.6" /></label>
+        <label>Scale <input id="pscale" name="scale" type="number" step="0.1" placeholder="e.g. 2" /></label>
+        <label>Real-ESRGAN model
+          <select id="prealesrgan_model" name="realesrgan_model">
+            <option value="">Auto</option>
+            <option value="realesrgan-x4plus">realesrgan-x4plus</option>
+            <option value="realesrgan-x4plus-anime">realesrgan-x4plus-anime</option>
+            <option value="realesr-animevideov3">realesr-animevideov3</option>
+            <option value="realesrgan-x2plus">realesrgan-x2plus</option>
+          </select>
+        </label>
+      </div>
+      <div style="margin-top: 1rem">
+        <button type="submit">Preview</button>
+      </div>
+    </form>
+    <div class="row" style="margin-top: 1rem">
+      <div>
+        <p><strong>Original/Up</strong></p>
+        <img id="prevLeft" style="max-width: 320px; border:1px solid #e5e7eb" />
+      </div>
+      <div>
+        <p><strong>Enhanced</strong></p>
+        <img id="prevRight" style="max-width: 320px; border:1px solid #e5e7eb" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Health panel
+    (async function(){
+      try {
+        const r = await fetch('/api/health');
+        const j = await r.json();
+        const wrap = document.createElement('div');
+        wrap.className = 'card';
+        wrap.style.marginTop = '2rem';
+        const ok = j.status === 'ok';
+        wrap.innerHTML = `<h2>System Health</h2>
+<p><strong>Overall:</strong> ${j.status}</p>
+<ul>
+  <li><strong>ffmpeg</strong>: ${j.details?.ffmpeg ? 'available' : 'missing'}</li>
+  <li><strong>RIFE</strong>: ${j.details?.clis?.rife?.available ? 'available' : 'missing'} (models: ${j.details?.clis?.rife?.models ? 'yes' : 'no'})</li>
+  <li><strong>CodeFormer</strong>: ${j.details?.clis?.codeformer?.available ? 'available' : 'missing'} (models: ${j.details?.clis?.codeformer?.models ? 'yes' : 'no'})</li>
+  <li><strong>GFPGAN</strong>: ${j.details?.clis?.gfpgan?.available ? 'available' : 'missing'} (models: ${j.details?.clis?.gfpgan?.models ? 'yes' : 'no'})</li>
+  <li><strong>Real-ESRGAN</strong>: ${j.details?.clis?.realesrgan?.available ? 'available' : 'missing'} (models: ${j.details?.clis?.realesrgan?.models ? 'yes' : 'no'})</li>
+</ul>`;
+        document.body.appendChild(wrap);
+      } catch {}
+    })();
+    const form = document.getElementById('form');
+    const statusEl = document.getElementById('status');
+    const st = document.getElementById('st');
+    const prog = document.getElementById('prog');
+    const result = document.getElementById('result');
+
+    async function upload(formData) {
+      const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (!resp.ok) throw new Error('Upload failed');
+      return resp.json();
+    }
+
+    async function getJob(id) {
+      const r = await fetch(`/api/job/${id}`);
+      if (!r.ok) throw new Error('Job not found');
+      return r.json();
+    }
+
+    // Preview handlers
+    const pform = document.getElementById('previewForm');
+    const prevLeft = document.getElementById('prevLeft');
+    const prevRight = document.getElementById('prevRight');
+    pform.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(pform);
+      if (!fd.get('file') || !fd.get('file').name) { alert('Choose an image'); return; }
+      try {
+        const resp = await fetch('/api/preview', { method: 'POST', body: fd });
+        if (!resp.ok) throw new Error('Preview failed');
+        const data = await resp.json();
+        prevLeft.src = data.left_url;
+        prevRight.src = data.right_url;
+      } catch (err) {
+        alert(err?.message || String(err));
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      if (!fd.get('file') || !fd.get('file').name) { alert('Please choose a file'); return; }
+      statusEl.classList.remove('hidden');
+      st.textContent = 'PENDING';
+      prog.value = 0;
+      result.innerHTML = '';
+      try {
+        const { job_id } = await upload(fd);
+        let done = false;
+        while (!done) {
+          await new Promise(r => setTimeout(r, 800));
+          const j = await getJob(job_id);
+          st.textContent = j.status;
+          prog.value = j.progress ?? 0;
+          if (j.status === 'COMPLETED') {
+            done = true;
+            const a = document.createElement('a');
+            a.href = j.download_url || `/api/download/${job_id}`;
+            a.textContent = 'Download result';
+            a.className = 'button';
+            result.appendChild(a);
+            const hq = document.createElement('a');
+            hq.href = `/api/download/${job_id}/hq`;
+            hq.textContent = 'Download HQ';
+            hq.className = 'button';
+            hq.style.marginLeft = '0.5rem';
+            result.appendChild(hq);
+          } else if (j.status === 'FAILED' || j.status === 'CANCELLED') {
+            done = true;
+            result.textContent = j.error || 'Job failed or cancelled.';
+          }
+        }
+      } catch (err) {
+        alert(err?.message || String(err));
+      }
+    });
+  </script>
+</body>
+</html>

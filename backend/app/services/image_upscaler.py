@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 from typing import Optional
+import os
 
 try:
     from PIL import Image
@@ -15,11 +16,24 @@ def _which(program: str) -> Optional[str]:
     return shutil.which(program)
 
 
-def _upscale_with_realesrgan_cli(input_path: str, output_path: str, scale: float) -> bool:
+def _upscale_with_realesrgan_cli(input_path: str, output_path: str, scale: float, model_name: Optional[str]) -> bool:
     exe = _which("realesrgan-ncnn-vulkan")
     if exe is None:
         return False
     cmd = [exe, "-i", input_path, "-o", output_path, "-s", str(int(scale))]
+    # Model selection
+    model_name = model_name or os.environ.get("REALESRGAN_MODEL")
+    if model_name:
+        cmd.extend(["-n", model_name])
+    # Provide models directory if present and set threads/gpu flags
+    models_dir = os.environ.get("REALESRGAN_MODELS_DIR", "/app/models/realesrgan")
+    if os.path.isdir(models_dir):
+        cmd.extend(["-m", models_dir])
+    # Allow users to set NCNN threading; defaults are usually optimal
+    if os.environ.get("NCNN_THREADS"):
+        cmd.extend(["-t", os.environ["NCNN_THREADS"]])
+    if os.environ.get("NCNN_GPU") in {"0", "1"}:
+        cmd.extend(["-g", os.environ["NCNN_GPU"]])
     subprocess.run(cmd, check=True)
     return True
 
@@ -57,6 +71,7 @@ def upscale_image(
     scale: Optional[float] = None,
     target_width: Optional[int] = None,
     target_height: Optional[int] = None,
+    realesrgan_model: Optional[str] = None,
 ) -> None:
     """Upscale an image using Real-ESRGAN CLI if available, otherwise Pillow.
 
@@ -65,7 +80,7 @@ def upscale_image(
     # Prefer CLI if a valid integer scale factor and CLI is available
     if scale and float(scale).is_integer() and int(scale) in {2, 3, 4}:
         try:
-            used_cli = _upscale_with_realesrgan_cli(input_path, output_path, scale=scale)
+            used_cli = _upscale_with_realesrgan_cli(input_path, output_path, scale=scale, model_name=realesrgan_model)
             if used_cli:
                 return
         except Exception:
