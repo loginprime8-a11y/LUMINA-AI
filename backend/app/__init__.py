@@ -7,6 +7,7 @@ from .routes.health import health_bp
 from .routes.upload import upload_bp
 from .routes.jobs import jobs_bp
 from .routes.ui import ui_bp
+from .routes.preview import preview_bp
 
 
 def create_app() -> Flask:
@@ -30,5 +31,6 @@ def create_app() -> Flask:
     app.register_blueprint(health_bp, url_prefix="/api")
     app.register_blueprint(upload_bp, url_prefix="/api")
     app.register_blueprint(jobs_bp, url_prefix="/api")
+    app.register_blueprint(preview_bp, url_prefix="/api")
 
     return app

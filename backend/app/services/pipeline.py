@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 from ..utils.config import AppConfig
 from ..utils import ffmpeg as ffm
 from .image_upscaler import upscale_image
+from .enhancers import apply_enhancements
 
 
 @dataclass
@@ -17,6 +18,10 @@ class ProcessOptions:
     target_height: Optional[int] = None
     video_bitrate: Optional[str] = None
     format: Optional[str] = None
+    mode: Optional[str] = None
+    strength: Optional[float] = None
+    interpolate: Optional[bool] = None
+    interp_factor: Optional[int] = None
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "ProcessOptions":
@@ -26,6 +31,10 @@ class ProcessOptions:
             target_height=data.get("target_height"),
             video_bitrate=data.get("video_bitrate"),
             format=data.get("format"),
+            mode=data.get("mode"),
+            strength=data.get("strength"),
+            interpolate=data.get("interpolate"),
+            interp_factor=data.get("interp_factor"),
         )
 
 
@@ -50,18 +59,35 @@ def _process_image(job: Job, options: ProcessOptions, job_manager) -> str:
     if output_format not in {"png", "jpg", "jpeg", "webp"}:
         output_format = "png"
 
-    output_path = os.path.join(output_dir, f"{base_name}_upscaled.{output_format}")
+    suffix = "upscaled"
+    if options.mode:
+        suffix = options.mode.replace(" ", "_")
+    output_path = os.path.join(output_dir, f"{base_name}_{suffix}.{output_format}")
 
     # Early cancel check
     if getattr(job, "cancel_requested", False):
         raise RuntimeError("cancelled")
 
-    upscale_image(
-        input_path=job.input_path,
+    # First, upscale if requested
+    if options.scale or options.target_width or options.target_height:
+        temp_up = os.path.join(output_dir, f"{base_name}_tmp_upscale.{output_format}")
+        upscale_image(
+            input_path=job.input_path,
+            output_path=temp_up,
+            scale=options.scale,
+            target_width=options.target_width,
+            target_height=options.target_height,
+        )
+        src_for_enhance = temp_up
+    else:
+        src_for_enhance = job.input_path
+
+    # Then, apply enhancements (general/face/repair) if requested or default to general
+    apply_enhancements(
+        input_path=src_for_enhance,
         output_path=output_path,
-        scale=options.scale,
-        target_width=options.target_width,
-        target_height=options.target_height,
+        mode=options.mode or "general",
+        strength=float(options.strength) if options.strength is not None else 0.6,
     )
 
     job_manager.set_progress(job, 1.0)
@@ -86,7 +112,7 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
     audio_extracted = ffm.extract_audio(job.input_path, audio_path)
     job_manager.set_progress(job, 0.1)
 
-    # Stage 2: Upscale frames
+    # Stage 2: Upscale + Enhance frames (and optionally interpolate later)
     frame_files = ffm.list_frame_files(frames_job_dir)
     if total_frames and len(frame_files) != total_frames:
         total_frames = len(frame_files)
@@ -100,12 +126,20 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
             raise RuntimeError("cancelled")
         base = os.path.basename(frame_path)
         out_frame = os.path.join(processed_dir, base)
+        # Upscale first into a temp, then enhance into final processed frame
+        temp_up = os.path.join(processed_dir, f"tmp_{base}")
         upscale_image(
             input_path=frame_path,
-            output_path=out_frame,
+            output_path=temp_up,
             scale=options.scale,
             target_width=options.target_width,
             target_height=options.target_height,
+        )
+        apply_enhancements(
+            input_path=temp_up,
+            output_path=out_frame,
+            mode=options.mode or "general",
+            strength=float(options.strength) if options.strength is not None else 0.6,
         )
         completed += 1
         # Scale progress for this stage between 0.1 and 0.9
@@ -125,12 +159,21 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
     if getattr(job, "cancel_requested", False):
         raise RuntimeError("cancelled")
 
+    # Optional interpolation: if requested, increase fps
+    interp_fps = None
+    if options.interpolate and options.interp_factor and options.interp_factor > 1:
+        try:
+            interp_fps = float(fps) * float(options.interp_factor)
+        except Exception:
+            interp_fps = None
+
     ffm.assemble_video(
         frames_dir=processed_dir,
         fps=fps,
         output_path=output_path,
         audio_path=audio_path if audio_extracted else None,
         video_bitrate=options.video_bitrate,
+        interpolate_to_fps=interp_fps,
     )
 
     job_manager.set_progress(job, 0.98)

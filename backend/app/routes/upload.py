@@ -59,6 +59,13 @@ def upload():
     target_height = _parse_int("target_height")
     video_bitrate = form.get("video_bitrate") or None
     output_format = form.get("format") or None
+    mode = form.get("mode") or None
+    strength = _parse_float("strength")
+    # video interpolation options (placeholder; not implemented with RIFE here)
+    interpolate = form.get("interpolate")
+    if interpolate is not None:
+        interpolate = interpolate.lower() in {"1", "true", "yes", "on"}
+    interp_factor = _parse_int("interp_factor")
 
     options = {
         "scale": scale,
@@ -66,6 +73,10 @@ def upload():
         "target_height": target_height,
         "video_bitrate": video_bitrate,
         "format": output_format,
+        "mode": mode,
+        "strength": strength,
+        "interpolate": interpolate,
+        "interp_factor": interp_factor,
     }
 
     job = job_manager.create_job(job_id=job_id, input_path=input_path, media_type=media_type, options=options)

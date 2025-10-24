@@ -72,7 +72,14 @@ def extract_audio(input_video_path: str, audio_output_path: str) -> bool:
         return False
 
 
-def assemble_video(frames_dir: str, fps: float, output_path: str, audio_path: Optional[str] = None, video_bitrate: Optional[str] = None) -> None:
+def assemble_video(
+    frames_dir: str,
+    fps: float,
+    output_path: str,
+    audio_path: Optional[str] = None,
+    video_bitrate: Optional[str] = None,
+    interpolate_to_fps: Optional[float] = None,
+) -> None:
     processed_dir = frames_dir
     pattern = os.path.join(processed_dir, "%08d.png")
 
@@ -83,6 +90,13 @@ def assemble_video(frames_dir: str, fps: float, output_path: str, audio_path: Op
         str(fps),
         "-i",
         pattern,
+    ]
+
+    # Optional frame interpolation to a higher fps using FFmpeg minterpolate
+    if interpolate_to_fps and interpolate_to_fps > fps:
+        cmd.extend(["-vf", f"minterpolate=fps={interpolate_to_fps}"])
+
+    cmd.extend([
         "-pix_fmt",
         "yuv420p",
         "-c:v",
@@ -91,7 +105,7 @@ def assemble_video(frames_dir: str, fps: float, output_path: str, audio_path: Op
         "slow",
         "-crf",
         "18",
-    ]
+    ])
 
     if video_bitrate:
         cmd.extend(["-b:v", video_bitrate])

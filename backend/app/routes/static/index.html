@@ -23,11 +23,21 @@
     <form id="form">
       <div class="row">
         <input id="file" name="file" type="file" required />
+        <label>Mode
+          <select id="mode" name="mode">
+            <option value="general">General Enhancement</option>
+            <option value="face">Face Enhancement</option>
+            <option value="repair">AI Repair</option>
+          </select>
+        </label>
+        <label>Strength <input id="strength" name="strength" type="number" step="0.1" min="0" max="1" value="0.6" /></label>
         <label>Scale <input id="scale" name="scale" type="number" step="0.1" placeholder="e.g. 2" /></label>
         <label>Target width <input id="tw" name="target_width" type="number" /></label>
         <label>Target height <input id="th" name="target_height" type="number" /></label>
         <label>Format <input id="fmt" name="format" type="text" placeholder="png/jpg/webp/mp4" /></label>
         <label>Video bitrate <input id="vb" name="video_bitrate" type="text" placeholder="e.g. 2M" /></label>
+        <label>Interpolate <input id="interpolate" name="interpolate" type="checkbox" /></label>
+        <label>Interp factor <input id="interp_factor" name="interp_factor" type="number" min="2" max="8" /></label>
       </div>
       <div style="margin-top: 1rem">
         <button type="submit">Start</button>
@@ -39,6 +49,37 @@
       <div id="result"></div>
     </div>
   </div>
+  <h2 style="margin-top:2rem">Preview (image only)</h2>
+  <div class="card">
+    <form id="previewForm">
+      <div class="row">
+        <input id="pfile" name="file" type="file" accept="image/*" required />
+        <label>Mode
+          <select id="pmode" name="mode">
+            <option value="general">General</option>
+            <option value="face">Face</option>
+            <option value="repair">Repair</option>
+          </select>
+        </label>
+        <label>Strength <input id="pstrength" name="strength" type="number" step="0.1" min="0" max="1" value="0.6" /></label>
+        <label>Scale <input id="pscale" name="scale" type="number" step="0.1" placeholder="e.g. 2" /></label>
+      </div>
+      <div style="margin-top: 1rem">
+        <button type="submit">Preview</button>
+      </div>
+    </form>
+    <div class="row" style="margin-top: 1rem">
+      <div>
+        <p><strong>Original/Up</strong></p>
+        <img id="prevLeft" style="max-width: 320px; border:1px solid #e5e7eb" />
+      </div>
+      <div>
+        <p><strong>Enhanced</strong></p>
+        <img id="prevRight" style="max-width: 320px; border:1px solid #e5e7eb" />
+      </div>
+    </div>
+  </div>
+
   <script>
     const form = document.getElementById('form');
     const statusEl = document.getElementById('status');
@@ -57,6 +98,25 @@
       if (!r.ok) throw new Error('Job not found');
       return r.json();
     }
+
+    // Preview handlers
+    const pform = document.getElementById('previewForm');
+    const prevLeft = document.getElementById('prevLeft');
+    const prevRight = document.getElementById('prevRight');
+    pform.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(pform);
+      if (!fd.get('file') || !fd.get('file').name) { alert('Choose an image'); return; }
+      try {
+        const resp = await fetch('/api/preview', { method: 'POST', body: fd });
+        if (!resp.ok) throw new Error('Preview failed');
+        const data = await resp.json();
+        prevLeft.src = data.left_url;
+        prevRight.src = data.right_url;
+      } catch (err) {
+        alert(err?.message || String(err));
+      }
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
