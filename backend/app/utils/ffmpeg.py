@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 from typing import List, Optional
+import os
 
 
 def ffmpeg_available() -> bool:
@@ -14,6 +15,13 @@ def ffmpeg_available() -> bool:
 def rife_available() -> Optional[str]:
     # Use RIFE ncnn Vulkan CLI if present
     return shutil.which("rife-ncnn-vulkan")
+
+
+def _get_models_dir(env_var: str, default: str) -> Optional[str]:
+    path = os.environ.get(env_var, default)
+    if path and os.path.isdir(path):
+        return path
+    return None
 
 
 def _run_command(args: List[str]) -> subprocess.CompletedProcess:
@@ -112,7 +120,11 @@ def assemble_video(
                 factor = max(2, int(round(float(interpolate_to_fps) / float(fps))))
             except Exception:
                 factor = 2
-            subprocess.run([rife, "-i", pattern, "-o", out_pattern, "-n", str(factor)], check=True)
+            args = [rife, "-i", pattern, "-o", out_pattern, "-n", str(factor)]
+            mdir = _get_models_dir("RIFE_MODELS_DIR", "/app/models/rife")
+            if mdir:
+                args.extend(["-m", mdir])
+            subprocess.run(args, check=True)
             frames_dir = tmp_out
             pattern = os.path.join(frames_dir, "%08d.png")
             cmd = [

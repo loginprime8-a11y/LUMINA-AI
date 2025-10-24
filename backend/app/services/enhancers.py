@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from typing import Optional
@@ -33,6 +34,13 @@ def _codeformer_available() -> Optional[str]:
     return _which("codeformer-ncnn-vulkan")
 
 
+def _get_models_dir(env_var: str, default: str) -> Optional[str]:
+    path = os.environ.get(env_var, default)
+    if path and os.path.isdir(path):
+        return path
+    return None
+
+
 def enhance_image_general(input_path: str, output_path: str, strength: float = 0.5) -> None:
     """Lightweight general enhancement using PIL: contrast, sharpness, denoise."""
     _ensure_pil_available()
@@ -57,8 +65,12 @@ def enhance_image_face(input_path: str, output_path: str, strength: float = 0.5)
     codeformer = _codeformer_available()
     if codeformer:
         try:
-            # Some builds accept just -i/-o; if it fails, we'll fall back
-            _run_cmd([codeformer, "-i", input_path, "-o", output_path])
+            # Some builds accept just -i/-o; provide -m if models dir exists
+            args = [codeformer, "-i", input_path, "-o", output_path]
+            mdir = _get_models_dir("CODEFORMER_MODELS_DIR", "/app/models/codeformer")
+            if mdir:
+                args.extend(["-m", mdir])
+            _run_cmd(args)
             return
         except Exception:
             pass
@@ -67,7 +79,11 @@ def enhance_image_face(input_path: str, output_path: str, strength: float = 0.5)
     gfpgan = _gfpgan_available()
     if gfpgan:
         try:
-            _run_cmd([gfpgan, "-i", input_path, "-o", output_path])
+            args = [gfpgan, "-i", input_path, "-o", output_path]
+            mdir = _get_models_dir("GFPGAN_MODELS_DIR", "/app/models/gfpgan")
+            if mdir:
+                args.extend(["-m", mdir])
+            _run_cmd(args)
             return
         except Exception:
             pass
