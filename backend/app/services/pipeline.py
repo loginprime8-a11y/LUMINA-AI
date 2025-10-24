@@ -53,6 +53,10 @@ def _process_image(job: Job, options: ProcessOptions, job_manager) -> str:
 
     output_path = os.path.join(output_dir, f"{base_name}_upscaled.{output_format}")
 
+    # Early cancel check
+    if getattr(job, "cancel_requested", False):
+        raise RuntimeError("cancelled")
+
     upscale_image(
         input_path=job.input_path,
         output_path=output_path,
@@ -74,6 +78,9 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
     os.makedirs(frames_job_dir, exist_ok=True)
 
     # Stage 1: Extract frames and audio
+    if getattr(job, "cancel_requested", False):
+        raise RuntimeError("cancelled")
+
     fps = ffm.get_video_fps(job.input_path) or 30.0
     total_frames = ffm.extract_frames(job.input_path, frames_job_dir)
     audio_path = os.path.join(frames_job_dir, "audio.aac")
@@ -90,6 +97,8 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
 
     completed = 0
     for frame_path in frame_files:
+        if getattr(job, "cancel_requested", False):
+            raise RuntimeError("cancelled")
         base = os.path.basename(frame_path)
         out_frame = os.path.join(processed_dir, base)
         upscale_image(
@@ -113,6 +122,9 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
     if output_format not in {"mp4", "mov", "mkv", "webm"}:
         output_format = "mp4"
     output_path = os.path.join(output_dir, f"{base_name}_upscaled.{output_format}")
+
+    if getattr(job, "cancel_requested", False):
+        raise RuntimeError("cancelled")
 
     ffm.assemble_video(
         frames_dir=processed_dir,
