@@ -170,9 +170,11 @@ def _process_video(job: Job, options: ProcessOptions, job_manager) -> str:
 
     # Optional interpolation: if requested, increase fps
     interp_fps = None
-    if options.interpolate and options.interp_factor and options.interp_factor > 1:
+    # Prefer explicit rife_factor if provided, else use generic interp_factor
+    chosen_factor = options.rife_factor if (options.rife_factor and options.rife_factor > 1) else options.interp_factor
+    if options.interpolate and chosen_factor and chosen_factor > 1:
         try:
-            interp_fps = float(fps) * float(options.interp_factor)
+            interp_fps = float(fps) * float(chosen_factor)
         except Exception:
             interp_fps = None
 
