@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 from typing import Optional
+import os
 
 try:
     from PIL import Image
@@ -20,6 +21,15 @@ def _upscale_with_realesrgan_cli(input_path: str, output_path: str, scale: float
     if exe is None:
         return False
     cmd = [exe, "-i", input_path, "-o", output_path, "-s", str(int(scale))]
+    # Provide models directory if present and set threads/gpu flags
+    models_dir = os.environ.get("REALESRGAN_MODELS_DIR", "/app/models/realesrgan")
+    if os.path.isdir(models_dir):
+        cmd.extend(["-m", models_dir])
+    # Allow users to set NCNN threading; defaults are usually optimal
+    if os.environ.get("NCNN_THREADS"):
+        cmd.extend(["-t", os.environ["NCNN_THREADS"]])
+    if os.environ.get("NCNN_GPU") in {"0", "1"}:
+        cmd.extend(["-g", os.environ["NCNN_GPU"]])
     subprocess.run(cmd, check=True)
     return True
 

@@ -32,10 +32,14 @@ ENV MODELS_ROOT=/app/models
 ENV RIFE_MODELS_DIR=/app/models/rife
 ENV CODEFORMER_MODELS_DIR=/app/models/codeformer
 ENV GFPGAN_MODELS_DIR=/app/models/gfpgan
+ENV REALESRGAN_MODELS_DIR=/app/models/realesrgan
+ENV NCNN_THREADS=4
+ENV NCNN_GPU=1
+ENV REALESRGAN_MODELS_DIR=/app/models/realesrgan
 
 # Create storage dirs
 RUN mkdir -p /app/storage/input /app/storage/output /app/tmp/frames \
-    && mkdir -p /app/models/rife /app/models/codeformer /app/models/gfpgan /usr/local/bin
+    && mkdir -p /app/models/rife /app/models/codeformer /app/models/gfpgan /app/models/realesrgan /usr/local/bin
 
 # Install NCNN Vulkan CLIs (rife/codeformer/gfpgan) with model caches
 # Note: URLs and versions below are examples and may change; update as needed.
@@ -54,6 +58,10 @@ RUN set -eux; \
     curl -L -o gfpgan.zip https://github.com/nihui/gfpgan-ncnn-vulkan/releases/download/20220728/gfpgan-ncnn-vulkan-20220728-ubuntu.zip; \
     unzip gfpgan.zip -d gfpgan && cp gfpgan/gfpgan-ncnn-vulkan /usr/local/bin/ || true; \
     if [ -d gfpgan/models ]; then cp -r gfpgan/models/* /app/models/gfpgan/; fi; \
+    # Real-ESRGAN
+    curl -L -o realesrgan.zip https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan/releases/download/v0.2.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip; \
+    unzip realesrgan.zip -d realesrgan && cp realesrgan/realesrgan-ncnn-vulkan /usr/local/bin/ || true; \
+    if [ -d realesrgan/models ]; then cp -r realesrgan/models/* /app/models/realesrgan/; fi; \
     rm -rf /tmp/*; \
     chmod +x /usr/local/bin/*-ncnn-vulkan || true
 

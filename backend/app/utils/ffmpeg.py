@@ -124,6 +124,11 @@ def assemble_video(
             mdir = _get_models_dir("RIFE_MODELS_DIR", "/app/models/rife")
             if mdir:
                 args.extend(["-m", mdir])
+            # Expose optional thread/gpu flags similar to other NCNN tools
+            if os.environ.get("NCNN_THREADS"):
+                args.extend(["-t", os.environ["NCNN_THREADS"]])
+            if os.environ.get("NCNN_GPU") in {"0", "1"}:
+                args.extend(["-g", os.environ["NCNN_GPU"]])
             subprocess.run(args, check=True)
             frames_dir = tmp_out
             pattern = os.path.join(frames_dir, "%08d.png")
