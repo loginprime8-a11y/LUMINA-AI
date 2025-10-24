@@ -17,6 +17,7 @@ class JobStatus(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 JobType = Literal["image", "video"]
@@ -34,6 +35,7 @@ class Job:
     error: Optional[str] = None
     created_at: float = field(default_factory=lambda: time.time())
     updated_at: float = field(default_factory=lambda: time.time())
+    cancel_requested: bool = False
 
     def output_filename(self) -> str:
         if self.output_path:
@@ -64,21 +66,53 @@ class JobManager:
             self._jobs[job_id] = job
         return job
 
+    def list_jobs(self) -> list[Job]:
+        with self._jobs_lock:
+            return list(self._jobs.values())
+
+    def cancel_job(self, job_id: str) -> bool:
+        """Request cancellation for a job.
+
+        Returns True if the cancellation was accepted, False if not found or not cancellable.
+        """
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return False
+            if job.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+                return False
+            job.cancel_requested = True
+            # If the job hasn't started yet, mark as cancelled immediately
+            if job.status == JobStatus.PENDING:
+                job.status = JobStatus.CANCELLED
+            self._jobs[job_id] = job
+            return True
+
     def enqueue(self, job: Job) -> None:
         self._executor.submit(self._run_job, job)
 
     def _run_job(self, job: Job) -> None:
+        # Skip running if cancellation was requested before start
+        if job.cancel_requested and job.status == JobStatus.PENDING:
+            job.status = JobStatus.CANCELLED
+            self._update_job(job)
+            return
         job.status = JobStatus.RUNNING
         self._update_job(job)
         try:
             output_path = process_media(job, self)
             job.output_path = output_path
             job.progress = 1.0
-            job.status = JobStatus.COMPLETED
+            # If cancellation was requested during processing, honor it
+            if job.cancel_requested:
+                job.status = JobStatus.CANCELLED
+            else:
+                job.status = JobStatus.COMPLETED
         except Exception as exc:  # noqa: BLE001 - surface exceptions to job record
             self._logger.exception("Job failed: %s", job.id)
             job.error = str(exc)
-            job.status = JobStatus.FAILED
+            # Differentiate between failure and cancellation if requested
+            job.status = JobStatus.CANCELLED if job.cancel_requested else JobStatus.FAILED
         finally:
             self._update_job(job)
 
